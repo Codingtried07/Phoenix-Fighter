@@ -1,34 +1,70 @@
 const canvas = document.querySelector('canvas')
 const c = canvas.getContext('2d')
 
-canvas.width = 1024
-canvas.height = 576
+// Original dimensions for scaling calculations
+const ORIGINAL_WIDTH = 1024
+const ORIGINAL_HEIGHT = 576
 
-c.fillRect(0, 0, canvas.width, canvas.height)
+// Function to update canvas size
+function resizeCanvas() {
+  const windowWidth = window.innerWidth
+  const windowHeight = window.innerHeight
+  
+  const gameAspectRatio = 16 / 9
+  const windowAspectRatio = windowWidth / windowHeight
+  
+  let newWidth, newHeight
+  
+  if (windowAspectRatio > gameAspectRatio) {
+    newHeight = windowHeight * 0.95
+    newWidth = newHeight * gameAspectRatio
+  } else {
+    newWidth = windowWidth * 0.95
+    newHeight = newWidth / gameAspectRatio
+  }
+  
+  canvas.width = newWidth
+  canvas.height = newHeight
+  
+  return {
+    scaleX: newWidth / ORIGINAL_WIDTH,
+    scaleY: newHeight / ORIGINAL_HEIGHT
+  }
+}
 
-const gravity = 0.7
+// Helper function for scaling velocities
+function getScaledVelocity(baseVelocity) {
+  return (baseVelocity * canvas.width) / ORIGINAL_WIDTH
+}
+
+// Initial canvas setup
+const { scaleX, scaleY } = resizeCanvas()
+
+// Scale gravity based on canvas height
+const gravity = 0.7 * (canvas.height / ORIGINAL_HEIGHT)
 
 const background = new Sprite({
   position: {
     x: 0,
     y: 0
   },
-  imageSrc: './img/background.png'
+  imageSrc: './img/background.png',
+  scale: scaleX
 })
 
 const shop = new Sprite({
   position: {
-    x: 600,
-    y: 128
+    x: canvas.width * 0.6,
+    y: canvas.height * 0.22
   },
   imageSrc: './img/shop.png',
-  scale: 2.75,
+  scale: 2.75 * scaleX,
   framesMax: 6
 })
 
 const player = new Fighter({
   position: {
-    x: 0,
+    x: canvas.width * 0.2,
     y: 0
   },
   velocity: {
@@ -41,7 +77,7 @@ const player = new Fighter({
   },
   imageSrc: './img/samuraiMack/Idle.png',
   framesMax: 8,
-  scale: 2.5,
+  scale: 2.5 * scaleX,
   offset: {
     x: 215,
     y: 157
@@ -78,18 +114,18 @@ const player = new Fighter({
   },
   attackBox: {
     offset: {
-      x: 100,
-      y: 50
+      x: 100 * scaleX,
+      y: 50 * scaleY
     },
-    width: 160,
-    height: 50
+    width: 160 * scaleX,
+    height: 50 * scaleY
   }
 })
 
 const enemy = new Fighter({
   position: {
-    x: 400,
-    y: 100
+    x: canvas.width * 0.8,
+    y: 0
   },
   velocity: {
     x: 0,
@@ -102,7 +138,7 @@ const enemy = new Fighter({
   },
   imageSrc: './img/kenji/Idle.png',
   framesMax: 4,
-  scale: 2.5,
+  scale: 2.5 * scaleX,
   offset: {
     x: 215,
     y: 167
@@ -139,15 +175,13 @@ const enemy = new Fighter({
   },
   attackBox: {
     offset: {
-      x: -170,
-      y: 50
+      x: -170 * scaleX,
+      y: 50 * scaleY
     },
-    width: 170,
-    height: 50
+    width: 170 * scaleX,
+    height: 50 * scaleY
   }
 })
-
-console.log(player)
 
 const keys = {
   a: {
@@ -164,12 +198,41 @@ const keys = {
   }
 }
 
+// Handle window resize
+window.addEventListener('resize', () => {
+  const { scaleX, scaleY } = resizeCanvas()
+  
+  // Update game element scales
+  background.scale = scaleX
+  player.scale = 2.5 * scaleX
+  enemy.scale = 2.5 * scaleX
+  shop.scale = 2.75 * scaleX
+  
+  // Update attack box dimensions
+  player.attackBox.width = 160 * scaleX
+  player.attackBox.height = 50 * scaleY
+  enemy.attackBox.width = 170 * scaleX
+  enemy.attackBox.height = 50 * scaleY
+  
+  // Update positions
+  shop.position.x = canvas.width * 0.6
+  shop.position.y = canvas.height * 0.22
+  
+  if (!player.dead) {
+    player.position.x = canvas.width * 0.2
+  }
+  if (!enemy.dead) {
+    enemy.position.x = canvas.width * 0.8
+  }
+})
+
 decreaseTimer()
 
 function animate() {
   window.requestAnimationFrame(animate)
   c.fillStyle = 'black'
   c.fillRect(0, 0, canvas.width, canvas.height)
+  
   background.update()
   shop.update()
   c.fillStyle = 'rgba(255, 255, 255, 0.15)'
@@ -180,19 +243,18 @@ function animate() {
   player.velocity.x = 0
   enemy.velocity.x = 0
 
-  // player movement
-
+  // Player movement
   if (keys.a.pressed && player.lastKey === 'a') {
-    player.velocity.x = -5
+    player.velocity.x = getScaledVelocity(-5)
     player.switchSprite('run')
   } else if (keys.d.pressed && player.lastKey === 'd') {
-    player.velocity.x = 5
+    player.velocity.x = getScaledVelocity(5)
     player.switchSprite('run')
   } else {
     player.switchSprite('idle')
   }
 
-  // jumping
+  // Player jumping
   if (player.velocity.y < 0) {
     player.switchSprite('jump')
   } else if (player.velocity.y > 0) {
@@ -201,23 +263,23 @@ function animate() {
 
   // Enemy movement
   if (keys.ArrowLeft.pressed && enemy.lastKey === 'ArrowLeft') {
-    enemy.velocity.x = -5
+    enemy.velocity.x = getScaledVelocity(-5)
     enemy.switchSprite('run')
   } else if (keys.ArrowRight.pressed && enemy.lastKey === 'ArrowRight') {
-    enemy.velocity.x = 5
+    enemy.velocity.x = getScaledVelocity(5)
     enemy.switchSprite('run')
   } else {
     enemy.switchSprite('idle')
   }
 
-  // jumping
+  // Enemy jumping
   if (enemy.velocity.y < 0) {
     enemy.switchSprite('jump')
   } else if (enemy.velocity.y > 0) {
     enemy.switchSprite('fall')
   }
 
-  // detect for collision & enemy gets hit
+  // Detect collision & enemy gets hit
   if (
     rectangularCollision({
       rectangle1: player,
@@ -228,18 +290,17 @@ function animate() {
   ) {
     enemy.takeHit()
     player.isAttacking = false
-
     gsap.to('#enemyHealth', {
       width: enemy.health + '%'
     })
   }
 
-  // if player misses
+  // If player misses
   if (player.isAttacking && player.framesCurrent === 4) {
     player.isAttacking = false
   }
 
-  // this is where our player gets hit
+  // Player gets hit
   if (
     rectangularCollision({
       rectangle1: enemy,
@@ -250,18 +311,17 @@ function animate() {
   ) {
     player.takeHit()
     enemy.isAttacking = false
-
     gsap.to('#playerHealth', {
       width: player.health + '%'
     })
   }
 
-  // if player misses
+  // If enemy misses
   if (enemy.isAttacking && enemy.framesCurrent === 2) {
     enemy.isAttacking = false
   }
 
-  // end game based on health
+  // End game based on health
   if (enemy.health <= 0 || player.health <= 0) {
     determineWinner({ player, enemy, timerId })
   }
@@ -281,9 +341,9 @@ window.addEventListener('keydown', (event) => {
         player.lastKey = 'a'
         break
       case 'w':
-        player.velocity.y = -20
+        player.velocity.y = getScaledVelocity(-20)
         break
-      case ' ':
+      case 's':
         player.attack()
         break
     }
@@ -300,11 +360,10 @@ window.addEventListener('keydown', (event) => {
         enemy.lastKey = 'ArrowLeft'
         break
       case 'ArrowUp':
-        enemy.velocity.y = -20
+        enemy.velocity.y = getScaledVelocity(-20)
         break
       case 'ArrowDown':
         enemy.attack()
-
         break
     }
   }
@@ -318,10 +377,6 @@ window.addEventListener('keyup', (event) => {
     case 'a':
       keys.a.pressed = false
       break
-  }
-
-  // enemy keys
-  switch (event.key) {
     case 'ArrowRight':
       keys.ArrowRight.pressed = false
       break
@@ -330,3 +385,4 @@ window.addEventListener('keyup', (event) => {
       break
   }
 })
+
